@@ -1,0 +1,28 @@
+{
+  "name": "react-index",
+  "version": "1.0.0",
+  "description": "ReactJS indexer",
+  "main": "react-index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MiklinMA/react-index.git"
+  },
+  "keywords": [
+    "react",
+    "indexing",
+    "pagination",
+    "cache"
+  ],
+  "author": "Mike Miklin <MiklinMA@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MiklinMA/react-index/issues"
+  },
+  "homepage": "https://github.com/MiklinMA/react-index#readme",
+  "dependencies": {
+    "axios": "^0.21.1"
+  }
+}
