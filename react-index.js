@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import qs from 'query-string';
-import api from './axios'
+import api from './api'
 import axios from 'axios'
 
 export const getSlug = (object) => {
