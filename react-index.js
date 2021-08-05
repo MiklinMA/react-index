@@ -1,10 +1,14 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
-import qs from 'query-string';
+import qs from 'query-string'
 import api from './api'
 import axios from 'axios'
 
-export const getSlug = (object) => {
-    return Object.values(object).map(v => v || String(v)).join('/') || 'default'
+export const getSlug = object => {
+  return (
+    Object.values(object)
+      .map(v => v || String(v))
+      .join('/') || 'default'
+  )
 }
 
 const createApi = ({
@@ -16,12 +20,14 @@ const createApi = ({
   defaultFilters,
   defaultGroups,
   getId,
+  selectCheck,
   easyFilterCheck,
   useCache,
   reducers,
+  extraReducers,
   ...rest
 }) => {
-  if (!objectName) throw Error("objectName MUST be specified")
+  if (!objectName) throw Error('objectName MUST be specified')
   if (!storeName) {
     storeName = objectName.split('/').pop()
   }
@@ -29,7 +35,8 @@ const createApi = ({
   defaultFilters = defaultFilters || {}
   defaultGroups = defaultGroups || {}
   getId = getId || (item => item?._id)
-  reducers = reducers || []
+  reducers = reducers || {}
+  extraReducers = extraReducers || []
   useCache = useCache === undefined ? true : useCache
 
   const checkId = (state, action) => {
@@ -47,18 +54,20 @@ const createApi = ({
     let diffs = !Boolean(state.query)
 
     const check = (o, k, v, ez) => {
-      if (!ez && o[k] === undefined) return
-      if (String(o[k]) === decodeURI(v)) return
+      const found = o[k] !== undefined
+      if (!ez && o[k] === undefined) return found
+      if (String(o[k]) === decodeURI(v)) return found
 
-      o[k] = v
+      o[k] = v === undefined ? null : v
       diffs = true
-      return true
+      return found
     }
 
     if (Object.keys(action?.payload || {}).length) {
       Object.entries(action.payload).forEach(([k, v]) => {
-        if (!check(state.groups, k, v))
-          check(state.filters, k, v, easyFilterCheck)
+        if (check(state.params, k, v)) return
+        if (check(state.groups, k, v)) return
+        check(state.filters, k, v, easyFilterCheck)
       })
     } else {
       diffs = true
@@ -70,7 +79,7 @@ const createApi = ({
       resetQuery(state)
     }
   }
-  const resetQuery = (state) => {
+  const resetQuery = state => {
     const params = Object.entries({
       ...state.groups,
       ...state.filters,
@@ -81,76 +90,90 @@ const createApi = ({
 
     state.query = qs.stringify(params)
   }
-  const resetGroups = (state) => {
+  const resetGroups = state => {
     state.groups = { ...state.defaults.groups }
     resetQuery(state)
   }
 
-  const apiFetchOne = async (id) => {
-      let url = objectName
-      const params = { ...defaultApiParams }
-      if (idParam) params[idParam] = id
-      else url += `/${id}`
-
-      const result = await api.get(url, {params})
-      return result?.results || result
-  }
-
-  let cancelList
-  const apiFetchList = async (groups, filters) => {
-    if (cancelList !== undefined) cancelList()
+  const getParams = (params, groups, filters) => {
     const f = {
-      ...groups,
-      ...filters,
+      ...(params || {}),
+      ...(groups || {}),
+      ...(filters || {}),
     }
     Object.entries(f).forEach(([k, v]) => {
       if (v === null) return
-      if (typeof v === "object") f[k] = JSON.stringify(v)
+      if (typeof v === 'object') f[k] = JSON.stringify(v)
       else f[k] = v
     })
+    return f
+  }
+
+  const apiFetchOne = async (id, params, groups) => {
+    let url = objectName
+    const args = getParams(params, groups)
+    if (idParam) args[idParam] = id
+    else url += `/${id}`
+
+    const result = await api.get(url, { params: args })
+    return result?.results || result
+  }
+
+  let cancelList
+  const apiFetchList = async (params, groups, filters) => {
+    if (cancelList !== undefined) cancelList()
 
     return api.get(objectName, {
-      params: {
-        ...defaultApiParams,
-        ...f,
-      },
-      cancelToken: new axios.CancelToken(
-        function executor(c) { cancelList = c }
-      )
+      params: getParams(params, groups, filters),
+      cancelToken: new axios.CancelToken(function executor(c) {
+        cancelList = c
+      }),
     })
   }
 
-  const fetchOne = createAsyncThunk(
-    `${storeName}/item`,
-    async (payload, thunkApi) => {
-      let result, id, force
+  const fetchOne = createAsyncThunk(`${storeName}/item`, async (payload, thunkApi) => {
+    let result, id, force
 
-      if (typeof payload === 'object') {
-        id = payload.id
-        force = payload.force
-      } else {
-        id = payload
-        force = false
+    if (!payload) {
+      return null
+    } else if (typeof payload === 'object') {
+      id = payload.id
+      force = payload.force
+    } else {
+      id = payload
+      force = false
+    }
+    if (!id) throw Error('Empty ID')
+
+    const { indexes, params, groups } = thunkApi.getState()[storeName]
+    if (!force) {
+      const index = indexes[getSlug(groups)]
+      result = index?.data?.[id]
+      if (result) {
+        if (!selectCheck || selectCheck(result)) {
+          return result
+        }
       }
-      if (!id) throw Error("Empty ID")
+    }
 
-      if (!force) {
-        const { indexes, groups } = thunkApi.getState()[storeName]
-        const index = indexes[getSlug(groups)]
-        result = index?.data?.[id]
-        if (result) return result
-      }
-
-      result = await apiFetchOne(id)
-      return result?.[0] || result
-    },
-  )
+    result = await apiFetchOne(id, params, groups)
+    return result?.[0] || result
+  })
 
   const fillOne = (state, action) => {
-    if (!action.payload) return
+    state.status = 'idle'
     if (action.payload === true) return
+    if (action.payload === null) {
+      state.selected = null
+      return
+    }
+    if (!action.payload) return
 
-    state.selected = action.payload
+    const id = getId(action.payload)
+
+    if (!state.checked.includes(id)) {
+      state.selected = action.payload
+    }
 
     const group = getSlug(state.groups)
     let index = state.indexes[group]
@@ -160,54 +183,63 @@ const createApi = ({
         views: {},
       }
     }
-    const id = getId(state.selected)
-    index.data[id] = index.data[id] && state.selected
-    state.data[id] = state.data[id] && state.selected
+    index.data[id] = action.payload
+    state.data[id] = action.payload
     state.view.forEach((item, i) => {
-      if (getId(item) === getId(state.selected)) state.view[i] = state.selected
+      if (getId(item) === id) state.view[i] = action.payload
     })
   }
 
-  const fetchData = createAsyncThunk(
-    `${storeName}/view`,
-    async (type, thunkApi) => {
-      const { indexes, filters, groups, checked } = thunkApi.getState()[storeName]
+  const fetchData = createAsyncThunk(`${storeName}/view`, async (type, thunkApi) => {
+    const {
+      indexes, checked,
+      params, filters, groups,
+    } = thunkApi.getState()[storeName]
 
-      const index = indexes[getSlug(groups)]
-      const view = index?.views?.[getSlug(filters)]
+    const index = indexes[getSlug(groups)]
+    const view = index?.views?.[getSlug(filters)]
 
-      if (useCache && type !== 'force' && view) {
-        if (view.data?.length) {
-          const results = view.data.map(item => index?.data?.[item])
-          if (results.length) {
-            if (cancelList !== undefined) cancelList()
-            return {
-              ...view,
-              results,
-              cache: true,
-            }
+    if (type === 'checked' && index) {
+      const ids = checked.filter(id => !index.data?.[id])
+      // console.log('fetch', ids)
+      if (!ids.length) {
+        throw Error('empty list')
+      }
+      if (idsParam) {
+        // fetch by idsParams
+      } else {
+        await Promise.all(ids.map(id => thunkApi.dispatch(fetchOne(id))))
+      }
+      return 'checked'
+    }
+
+    if (useCache && type !== 'force' && view) {
+      if (view.data?.length) {
+        const results = view.data.map(item => index?.data?.[item])
+        if (results.length) {
+          if (cancelList !== undefined) cancelList()
+          return {
+            ...view,
+            results,
+            cache: true,
           }
         }
       }
-
-      if (type === 'checked' && index) {
-        const ids = checked.filter(id => !index.data?.[id])
-        // console.log('fetch', ids)
-        if (!ids.length) return
-        if (idsParam) {
-        } else {
-          ids.map(id => thunkApi.dispatch(fetchOne(id)))
-        }
-        return
-      }
-
-      return apiFetchList(groups, filters)
     }
-  )
+
+    return apiFetchList(params, groups, filters)
+  })
 
   const fillData = (state, action) => {
-    state.status = 'idle'
-    if (!action.payload) return
+    if (!action.payload) {
+      state.status = 'idle'
+      return
+    }
+    if (action.payload === 'checked') {
+      state.status = 'idle'
+      state.checked = []
+      return
+    }
 
     let payload, view
     // UNSAFE
@@ -243,11 +275,12 @@ const createApi = ({
       })
     }
     state.data = index.data
+    state.view = payload
 
-    if (action.payload?.checked) return
-    else state.view = payload
-
-    if (action.payload?.cache) return
+    if (action.payload?.cache) {
+      state.status = 'idle'
+      return
+    }
 
     // Filters
     const filter = getSlug(state.filters)
@@ -256,79 +289,105 @@ const createApi = ({
       data: Object.values(payload).map(getId),
     }
 
-    state.selected = null
+    // state.selected = null
+    state.status = 'idle'
   }
 
   const errorData = (state, action) => {
-    console.error(action.error?.message)
-    state.status = "error"
+    if (action.error?.message === 'Rejected') return
+    console.error(action.error)
+    state.status = 'error'
   }
 
-  const cleanUp = (state) => {
+  const cleanUp = (state, action) => {
+    const exclude = ['filters', 'groups', 'params', 'query', 'defaults']
+
     Object.entries(initialState).forEach(([k, v]) => {
-      if ([
-        'filters',
-        'groups',
-        'params',
-        'query',
-        'defaults',
-      ].includes(k)) return
+      if (exclude.includes(k)) return
+      if (action?.payload && !action.payload.includes(k)) return
 
       state[k] = v
     })
   }
 
   const initialState = {
-      status: 'idle',
-      data: {},
-      view: [],
-      selected: null,
+    status: 'idle',
+    data: {},
+    view: [],
+    selected: null,
 
-      pagination: {},
-      indexes: {},
-      checked: [],
+    pagination: {},
+    indexes: {},
+    checked: [],
 
+    filters: defaultFilters,
+    groups: defaultGroups,
+    params: defaultApiParams,
+    query: '',
+
+    defaults: {
       filters: defaultFilters,
       groups: defaultGroups,
       params: defaultApiParams,
-      query: '', 
-
-      defaults: {
-        filters: defaultFilters,
-        groups: defaultGroups,
-      },
+    },
   }
 
   const slice = createSlice({
     name: storeName,
     initialState,
     reducers: {
+      load: (state) => { state.status = 'loading' },
       filter: setFilter,
       check: checkId,
       clean: cleanUp,
       resetGroups,
+      ...reducers,
     },
-    extraReducers: (builder) => {
+    extraReducers: builder => {
       builder
-        .addCase(fetchData.pending, (state) => { state.status = 'loading' })
+        .addCase(fetchData.pending, state => {
+          // state.view = []
+          if (state.checked?.length) return
+          state.status = 'loading'
+        })
         .addCase(fetchData.rejected, errorData)
         .addCase(fetchData.fulfilled, fillData)
         // .addCase(fetchOne.pending, (state, action) => { console.log('pending', action) })
         // .addCase(fetchOne.rejected, (state, action) => { console.log('rejected', action) })
+        .addCase(fetchOne.pending, (state, action) => {
+          // state.selected = null
+          if (state.checked?.length) return
+          if (!action.meta?.arg) return
+          state.status = 'loading_one'
+        })
         .addCase(fetchOne.fulfilled, fillOne)
-      reducers.forEach(reducer => {
+      extraReducers.forEach(reducer => {
         builder.addCase(reducer.action, reducer.callback)
       })
     },
   })
 
   return {
-    state: (state) => state[storeName],
+    root: state => state,
+    state: state => state[storeName],
+    store: callback => state => {
+      if (callback) return callback(state[storeName])
+      return state[storeName]
+    },
+    stateCustom: path => state => {
+      let part = state[storeName]
+      path.split('.').some(k => {
+        if (!part) return true
+        part = part[k]
+        return false
+      })
+      return part
+    },
     reducer: slice.reducer,
     ...slice.actions,
 
     select: fetchOne,
-    get: (id) => fetchOne({id, force: true}),
+    get: id => fetchOne({ id, force: true }),
 
     fetch: fetchData,
 
@@ -337,3 +396,4 @@ const createApi = ({
 }
 
 export default createApi
+
