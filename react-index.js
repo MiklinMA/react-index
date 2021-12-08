@@ -1,6 +1,4 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
-import qs from 'query-string'
-import api from './api'
 import axios from 'axios'
 
 export const getSlug = object => {
@@ -12,6 +10,7 @@ export const getSlug = object => {
 }
 
 const createApi = ({
+  api,
   objectName,
   storeName,
   idParam,
@@ -88,7 +87,7 @@ const createApi = ({
       return a
     }, {})
 
-    state.query = qs.stringify(params)
+    state.query = new URLSearchParams(params).toString()
   }
   const resetGroups = state => {
     state.groups = { ...state.defaults.groups }

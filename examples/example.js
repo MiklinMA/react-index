@@ -1,6 +1,8 @@
 import index from './react-index'
+import api from './api'
 
 export const apiBusiness = index({
+  api,
   objectName: 'businesses',
   defaultFilters: {
     status: 'active',
@@ -8,6 +10,7 @@ export const apiBusiness = index({
 })
 
 export const apiUsers = index({
+  api,
   objectName: 'users',
   storeName: 'api_users',
   defaultFilters: {
@@ -16,6 +19,7 @@ export const apiUsers = index({
 })
 
 export const apiSummaries = index({
+  api,
   objectName: 'summaries',
   idParam: 'business_id',
   defaultApiParams: {
@@ -34,6 +38,7 @@ export const apiSummaries = index({
 })
 
 export const apiTasks = index({
+  api,
   objectName: 'tasks',
   defaultGroups: {
     group_by: null,
@@ -59,6 +64,7 @@ export const apiTasks = index({
 })
 
 export const apiAccounts = index({
+  api,
   objectName: 'accounts',
   defaultFilters: {
     status: 'active',

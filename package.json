@@ -23,8 +23,9 @@
   },
   "homepage": "https://github.com/MiklinMA/react-index#readme",
   "dependencies": {
-    "@reduxjs/toolkit": "^1.6.0",
-    "axios": "^0.21.1",
-    "query-string": "^7.0.0"
+    "@reduxjs/toolkit": "^1.6.0"
+  },
+  "devDependencies": {
+    "axios": "^0.21.1"
   }
 }

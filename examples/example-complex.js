@@ -3,6 +3,7 @@ import { createAsyncThunk } from '@reduxjs/toolkit'
 import api from './api'
 
 const Terms = {
+  api,
   groups: {
     date_range: 'ALL_TIME',
     business_id: null,
@@ -299,6 +300,7 @@ export const apiSqr = index({
 })
 
 export const apiSqrScore = index({
+  api,
   objectName: 'reports/score_metric_percents',
   useCache: false,
   defaultGroups: {
@@ -319,6 +321,7 @@ const fillUpdateSqrStandard = (state, action) => {
 }
 
 export const apiSqrStandard = index({
+  api,
   objectName: 'reports/sqr_standard',
   useCache: false,
   defaultGroups: {
