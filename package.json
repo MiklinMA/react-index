@@ -2,7 +2,7 @@
   "name": "react-index",
   "version": "1.0.1",
   "description": "ReactJS indexer",
-  "main": "lib/index.js",
+  "main": "lib/react-index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MiklinMA/react-index.git"
