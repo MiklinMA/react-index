@@ -19,6 +19,8 @@ const createApi = ({
   defaultFilters,
   defaultGroups,
   getId,
+  getPayload,
+  dataKey,
   selectCheck,
   easyFilterCheck,
   useCache,
@@ -37,6 +39,29 @@ const createApi = ({
   reducers = reducers || {}
   extraReducers = extraReducers || []
   useCache = useCache === undefined ? true : useCache
+  getPayload = getPayload || ((state, data) => {
+    if (!dataKey || !data?.[dataKey]) {
+      return {
+        payload: data,
+        context: {}
+      }
+    }
+
+    // UNSAFE
+    // Fill state with all data from payload
+    // not only results
+    const payload = data[dataKey]
+    delete data[dataKey]
+    Object.keys(data).forEach(key => {
+      if (['cache'].includes(key)) return
+      state[key] = data[key]
+    })
+
+    return {
+      payload,
+      context: data,
+    }
+  })
 
   const checkId = (state, action) => {
     const id = action?.payload
@@ -115,7 +140,7 @@ const createApi = ({
     else url += `/${id}`
 
     const result = await api.get(url, { params: args })
-    return result?.results || result
+    return dataKey ? result?.[dataKey] || result : result
   }
 
   let cancelList
@@ -240,22 +265,7 @@ const createApi = ({
       return
     }
 
-    let payload, view
-    // UNSAFE
-    // Fill state with all data from payload
-    // not only results (ex. SQR summary)
-    if (action.payload?.results) {
-      payload = action.payload.results
-      delete action.payload?.results
-      Object.keys(action.payload).forEach(key => {
-        if (['cache'].includes(key)) return
-        state[key] = action.payload[key]
-      })
-      view = action.payload
-    } else {
-      payload = action.payload
-      view = {}
-    }
+    const { payload, context } = getPayload(state, action.payload)
 
     // Groups
     const group = getSlug(state.groups)
@@ -284,7 +294,7 @@ const createApi = ({
     // Filters
     const filter = getSlug(state.filters)
     index.views[filter] = {
-      ...view,
+      ...context,
       data: Object.values(payload).map(getId),
     }
 
@@ -315,7 +325,6 @@ const createApi = ({
     view: [],
     selected: null,
 
-    pagination: {},
     indexes: {},
     checked: [],
 
@@ -395,4 +404,3 @@ const createApi = ({
 }
 
 export default createApi
-
