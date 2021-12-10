@@ -143,15 +143,9 @@ const createApi = ({
     return dataKey ? result?.[dataKey] || result : result
   }
 
-  let cancelList
   const apiFetchList = async (params, groups, filters) => {
-    if (cancelList !== undefined) cancelList()
-
     return api.get(objectName, {
       params: getParams(params, groups, filters),
-      cancelToken: new axios.CancelToken(function executor(c) {
-        cancelList = c
-      }),
     })
   }
 
