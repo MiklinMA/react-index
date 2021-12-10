@@ -1,6 +1,6 @@
 {
   "name": "react-index",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "ReactJS indexer",
   "main": "lib/react-index.js",
   "repository": {
