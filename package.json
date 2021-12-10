@@ -20,13 +20,13 @@
   },
   "homepage": "https://github.com/MiklinMA/react-index#readme",
   "dependencies": {
-    "axios": "^0.21.1",
     "@reduxjs/toolkit": "^1.6.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.16.0",
     "@babel/core": "^7.16.0",
     "@babel/preset-env": "^7.16.4",
+    "axios": "^0.21.1",
     "jest": "^27.4.3",
     "regenerator-runtime": "^0.13.9"
   },
